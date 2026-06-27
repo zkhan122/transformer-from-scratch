@@ -1,0 +1,2 @@
+Raw text → [Tokenizer] → Token IDs → [Input Embedding]
+            → Vectors → [+ Positional Encoding] → Transformer
