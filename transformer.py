@@ -23,4 +23,19 @@ class SelfAttention(nn.Module): # aka SingleHeadAttention to be combined into Mu
         attn_values = torch.matmul(attn_softmax, V_proj)
         return attn_values 
 
-Q = torch.rand()
+
+
+d_model = 64
+seq_len = 10
+vocab_size = 100
+
+d_k = 64
+
+
+Q = torch.nn.Parameter(torch.rand(d_model, d_k))
+K = torch.nn.Parameter(torch.rand(d_model, d_k))
+V = torch.nn.Parameter(torch.rand(d_model, d_k))
+
+self_attn = SelfAttention(d_model, d_k)
+x = self_attn.forward()
+print(x)
