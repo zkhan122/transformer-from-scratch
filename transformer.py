@@ -4,7 +4,7 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
-from torch.nn.functional import softmax
+from torch.nn.functional import softmax, dropout
 
 class SelfAttention(nn.Module): # aka SingleHeadAttention to be combined into MultiHeadAttention
     def __init__(self, input_dim, d_k):
@@ -13,15 +13,21 @@ class SelfAttention(nn.Module): # aka SingleHeadAttention to be combined into Mu
         self.K_linear = nn.Linear(input_dim, d_k)
         self.V_linear = nn.Linear(input_dim, d_k)
 
-    def forward(self, Q, K , V, **kwargs): # mask: None, dropout: None):
+    def forward(self, Q, K , V, attn_mask, attn_dropout): # adapted implementation of torch.scaled_dot_product_attention()
         Q_proj = self.Q_linear(Q)
         K_proj = self.K_linear(K)
         V_proj = self.V_linear(V)
-        self.d_k = Q_proj[-1].shape[0]
+        self.d_k = Q_proj.shape[0]
+        attn_updated_mask = torch.zeros(size=(Q.shape[0], K.shape[0]))
+
+        if attn_mask is not None:
+            attn_updated_mask = torch.masked_fill(attn_mask, attn_mask.logical_not(), float("-inf"))
 
         attn_weights = torch.matmul(Q_proj, K_proj.transpose(0, 1)) / math.sqrt(self.d_k)
         print("Q*K^T / sqrt(d_k) -> ", attn_weights.shape)
+        attn_weights += attn_updated_mask
         attn_softmax = softmax(attn_weights, dim=-1) # on cols
+        attn_softmax = dropout(attn_softmax, attn_dropout, training=True, inplace=True)
         attn_values = torch.matmul(attn_softmax, V_proj)
         return attn_values 
 
@@ -41,6 +47,10 @@ print("K -> ", K.shape)
 print("V -> ", V.shape)
 
 self_attn = SelfAttention(d_model, d_k)
-x = self_attn.forward(Q, K, V)
+
+attn_mask = torch.zeros(size=(Q.shape[0], K.shape[0]))
+attn_dropout = 0.3
+
+x = self_attn.forward(Q, K, V, attn_mask, attn_dropout)
 print(x)
 print("final shape ->", x.shape)
