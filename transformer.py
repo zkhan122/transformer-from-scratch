@@ -30,14 +30,17 @@ class SelfAttention(nn.Module): # aka SingleHeadAttention to be combined into Mu
         print("shape Q*K^T / sqrt(d_k) -> ", attn_weights.shape)
         print("mask applied -> \n", attn_updated_mask)
         attn_weights += attn_updated_mask
-        print("2 -> \n", attn_weights)
+        print("2 -> \n", attn_weights) # will result in [token, -inf, -inf,...] for r1 and then [token, token, -inf,...] for r2 and so on
         attn_softmax = softmax(attn_weights, dim=-1) # on cols
         print("3 -> \n", attn_softmax)
         attn_softmax = dropout(attn_softmax, attn_dropout, training=True, inplace=True)
         print("4 -> \n", attn_softmax)
         attn_values = torch.matmul(attn_softmax, V_proj)
         print("5 -> \n", attn_values)
-        return attn_values 
+        return attn_values
+
+class MultiHeadAttention(nn.Module):
+    pass
 
 
 d_k = 64 # overall size for the key and query vectors for single attn head in the model
