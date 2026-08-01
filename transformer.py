@@ -21,14 +21,21 @@ class SelfAttention(nn.Module): # aka SingleHeadAttention to be combined into Mu
         attn_updated_mask = torch.zeros(size=(Q.shape[0], K.shape[0]))
 
         if attn_mask is not None:
-            attn_updated_mask = torch.masked_fill(attn_mask, attn_mask.logical_not(), float("-inf"))
+            # attn_updated_mask.masked_fill_(attn_mask.logical_not(), float("-inf"))
+            attn_updated_mask = attn_updated_mask.masked_fill(attn_mask == 0, float("-inf"))
 
         attn_weights = torch.matmul(Q_proj, K_proj.transpose(0, 1)) / math.sqrt(self.d_k)
-        print("Q*K^T / sqrt(d_k) -> ", attn_weights.shape)
-        attn_weights += attn_updated_mask
+        print("1 -> \n", attn_weights)
+        print("shape Q*K^T / sqrt(d_k) -> ", attn_weights.shape)
+        print("mask applied -> \n", attn_updated_mask)
+        attn_weights += attn_updated_mask.squeeze()
+        print("2 -> \n", attn_weights)
         attn_softmax = softmax(attn_weights, dim=-1) # on cols
+        print("3 -> \n", attn_softmax)
         attn_softmax = dropout(attn_softmax, attn_dropout, training=True, inplace=True)
+        print("4 -> \n", attn_softmax)
         attn_values = torch.matmul(attn_softmax, V_proj)
+        print("5 -> \n", attn_values)
         return attn_values 
 
 
@@ -36,6 +43,7 @@ d_k = 64 # overall size for the key and query vectors for single attn head in th
 d_model = 64 # overall size of the embedding dimension for the model
 seq_len = 10
 vocab_size = 100
+batch_size = 1
 
 
 Q = torch.nn.Parameter(torch.rand(d_model, d_k))
@@ -48,7 +56,8 @@ print("V -> ", V.shape)
 
 self_attn = SelfAttention(d_model, d_k)
 
-attn_mask = torch.zeros(size=(Q.shape[0], K.shape[0]))
+attn_mask = torch.tril(torch.ones(Q.shape[0], K.shape[0])).unsqueeze(0).repeat(batch_size, 1, 1)
+print("attn_mask -> \n", attn_mask)
 attn_dropout = 0.3
 
 x = self_attn.forward(Q, K, V, attn_mask, attn_dropout)
