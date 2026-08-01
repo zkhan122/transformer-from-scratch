@@ -21,14 +21,15 @@ class SelfAttention(nn.Module): # aka SingleHeadAttention to be combined into Mu
         attn_updated_mask = torch.zeros(size=(Q.shape[0], K.shape[0]))
 
         if attn_mask is not None:
-            # attn_updated_mask.masked_fill_(attn_mask.logical_not(), float("-inf"))
-            attn_updated_mask = attn_updated_mask.masked_fill(attn_mask == 0, float("-inf"))
+            attn_mask = attn_mask.squeeze()
+            attn_updated_mask.masked_fill_(attn_mask == 0, float("-inf")) # masked_fill_() > masked_fill()
+            # attn_updated_mask = attn_updated_mask.masked_fill(attn_mask == 0, float("-inf"))
 
         attn_weights = torch.matmul(Q_proj, K_proj.transpose(0, 1)) / math.sqrt(self.d_k)
         print("1 -> \n", attn_weights)
         print("shape Q*K^T / sqrt(d_k) -> ", attn_weights.shape)
         print("mask applied -> \n", attn_updated_mask)
-        attn_weights += attn_updated_mask.squeeze()
+        attn_weights += attn_updated_mask
         print("2 -> \n", attn_weights)
         attn_softmax = softmax(attn_weights, dim=-1) # on cols
         print("3 -> \n", attn_softmax)
