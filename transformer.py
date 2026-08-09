@@ -26,28 +26,46 @@ class SelfAttention(nn.Module): # aka SingleHeadAttention to be combined into Mu
             # attn_updated_mask = attn_updated_mask.masked_fill(attn_mask == 0, float("-inf"))
 
         attn_weights = torch.matmul(Q_proj, K_proj.transpose(0, 1)) / math.sqrt(self.d_k)
-        print("1 -> \n", attn_weights)
+        print("1 -> \n")
+        print("Q*K^T / sqrt(d_k) -> \n", attn_weights)
         print("shape Q*K^T / sqrt(d_k) -> ", attn_weights.shape)
-        print("mask applied -> \n", attn_updated_mask)
-        attn_weights += attn_updated_mask
-        print("2 -> \n", attn_weights) # will result in [token, -inf, -inf,...] for r1 and then [token, token, -inf,...] for r2 and so on
+
+        attn_weights += attn_updated_mask  # will result in [token, -inf, -inf,...] for r1 and then [token, token, -inf,...] for r2 and so on
+        print("\n 2 -> \n mask applied -> \n", attn_updated_mask)
+
         attn_softmax = softmax(attn_weights, dim=-1) # on cols
-        print("3 -> \n", attn_softmax)
+        print("\n 3 -> softmax applied on attn -> \n", attn_softmax)
+
         attn_softmax = dropout(attn_softmax, attn_dropout, training=True, inplace=True)
-        print("4 -> \n", attn_softmax)
+        print("\n 4 -> softmax applied on attn -> \n", attn_softmax)
+
         attn_values = torch.matmul(attn_softmax, V_proj)
-        print("5 -> \n", attn_values)
+        print("\n 5 -> \n matmul with V", attn_values)
+
         return attn_values
 
 class MultiHeadAttention(nn.Module):
-    pass
+    def __init__(self, input_dim, attn_dim, num_heads):
+        super(MultiHeadAttention, self).__init__()
+        self.input_dim = input_dim
+        self.attn_dim = attn_dim
+        self.num_heads = num_heads
+        self.heads = nn.ModuleList(SelfAttention(self.input_dim, self.attn_dim) for _ in range(self.num_heads))
+        self.linear = nn.Linear(self.num_heads * self.attn_dim, self.input_dim) # input dim is dim of attn * num_heads and we want to out size of input_dim
 
-
+    def forward(self, Q, K, V, mask, dropout):
+        head_outputs = [head(Q, K, V, mask, dropout) for head in self.heads]
+        concat_heads_outputs = torch.cat(head_outputs, dim=-1)
+        output = self.linear(concat_heads_outputs)
+        return output
+            
 d_k = 64 # overall size for the key and query vectors for single attn head in the model
 d_model = 64 # overall size of the embedding dimension for the model
 seq_len = 10
 vocab_size = 100
 batch_size = 1
+n_heads = 3
+attn_dim = 64
 
 
 Q = torch.nn.Parameter(torch.rand(d_model, d_k))
@@ -61,9 +79,20 @@ print("V -> ", V.shape)
 self_attn = SelfAttention(d_model, d_k)
 
 attn_mask = torch.tril(torch.ones(Q.shape[0], K.shape[0])).unsqueeze(0).repeat(batch_size, 1, 1)
-print("attn_mask -> \n", attn_mask)
 attn_dropout = 0.3
+
+print("attn_mask -> \n", attn_mask)
 
 x = self_attn.forward(Q, K, V, attn_mask, attn_dropout)
 print(x)
-print("final shape ->", x.shape)
+print("final dim of attn->", x.shape)
+
+print("\n\n---------------------------------")
+
+mha = MultiHeadAttention(input_dim=d_model, attn_dim=x.shape[0], num_heads=n_heads)
+print(f"\nMulti-Head-Attention initialized with (input_dim: {mha.input_dim}, attn_dim={mha.attn_dim}, {mha.num_heads} heads")
+
+multi_head_attn = mha.forward(Q, K, V, attn_mask, attn_dropout)
+
+print(multi_head_attn)
+print(multi_head_attn.shape)
