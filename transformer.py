@@ -6,60 +6,7 @@ import torch
 import torch.nn as nn
 from torch.nn.functional import softmax, dropout
 
-class SelfAttention(nn.Module): # aka SingleHeadAttention to be combined into MultiHeadAttention
-    def __init__(self, input_dim, d_k):
-        super().__init__()
-        self.Q_linear = nn.Linear(input_dim, d_k)
-        self.K_linear = nn.Linear(input_dim, d_k)
-        self.V_linear = nn.Linear(input_dim, d_k)
-    
-    def forward(self, Q, K , V, attn_mask, attn_dropout): # adapted implementation of torch.scaled_dot_product_attention()
-        Q_proj = self.Q_linear(Q)
-        K_proj = self.K_linear(K)
-        V_proj = self.V_linear(V)
-        self.d_k = Q_proj.shape[0]
-        attn_updated_mask = torch.zeros(size=(Q.shape[0], K.shape[0]))
-
-        if attn_mask is not None:
-            attn_mask = attn_mask.squeeze()
-            attn_updated_mask.masked_fill_(attn_mask == 0, float("-inf")) # masked_fill_() > masked_fill()
-            # attn_updated_mask = attn_updated_mask.masked_fill(attn_mask == 0, float("-inf"))
-
-        attn_weights = torch.matmul(Q_proj, K_proj.transpose(0, 1)) / math.sqrt(self.d_k)
-        print("1 -> \n")
-        print("Q*K^T / sqrt(d_k) -> \n", attn_weights)
-        print("shape Q*K^T / sqrt(d_k) -> ", attn_weights.shape)
-
-        attn_weights += attn_updated_mask  # will result in [token, -inf, -inf,...] for r1 and then [token, token, -inf,...] for r2 and so on
-        print("\n 2 -> \n mask applied -> \n", attn_updated_mask)
-
-        attn_softmax = softmax(attn_weights, dim=-1) # on cols
-        print("\n 3 -> softmax applied on attn -> \n", attn_softmax)
-
-        attn_softmax = dropout(attn_softmax, attn_dropout, training=True, inplace=True)
-        print("\n 4 -> softmax applied on attn -> \n", attn_softmax)
-
-        attn_values = torch.matmul(attn_softmax, V_proj)
-        print("\n 5 -> \n matmul with V", attn_values)
-
-        return attn_values
-
-
-class MultiHeadAttention(nn.Module):
-    def __init__(self, input_dim, attn_embedding_dim, num_heads):
-        super().__init__()
-        self.input_dim = input_dim
-        self.attn_embedding_dim = attn_embedding_dim
-        self.num_heads = num_heads
-        self.heads = nn.ModuleList(SelfAttention(self.input_dim, self.attn_embedding_dim) for _ in range(num_heads)) 
-        self.linear = nn.Linear(self.num_heads * self.input_dim, self.input_dim)
-
-    def forward(self, Q, K, V, mask, dropout):
-        head_outputs = [head(Q, K, V, mask, dropout) for head in self.heads]
-        concat_head_outputs = torch.cat(head_outputs, dim=-1)
-        output = self.linear(concat_head_outputs)
-        return output
-
+from attention import SelfAttention, MultiHeadAttention
 
 class Encoder(nn.Module):
     def __init__(self, Q, K, V, input_dim, attn_embedding_dim, attn_dropout, num_heads, batch_size):
